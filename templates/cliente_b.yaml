@@ -1,0 +1,17 @@
+tone: casual
+language: es
+name: "ClienteB"
+policies:
+  - no_hallucination: true
+  - require_confirmation: true
+  - escalate_after_attempts: 3
+required_fields:
+  STATUS_QUERY: [shipment_id]
+  RESCHEDULE: [shipment_id, new_date, time_window]
+  CREATE_TICKET: [shipment_id, issue_type, description, contact_email]
+message_formats:
+  status_update: "Hola! Un placer saludarte. Tu envío {id} está actualmente en estado {status}."
+  fallback: "¡Ups! Parece que este caso necesita atención especial..."
+  delay_notification: "¡Lamentamos informarte que tu envío {id} ha sufrido un retraso! Lamentamos las molestias."
+  reschedule_confirmation: "Tu solicitud de reprogramación para el envío {id} ha sido confirmada para el {new_date} en la franja horaria {time_window}."
+  ticket_creation: "Hemos creado un ticket para tu caso con el ID {ticket_id}. Lamentamos las molestias y nuestro equipo se pondrá en contacto contigo lo antes posible."
