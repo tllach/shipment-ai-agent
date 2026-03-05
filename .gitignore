@@ -1,0 +1,23 @@
+# dependencies
+__pycache__/
+*.pyc
+*.pyo
+venv/
+
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+*.egg-info/
