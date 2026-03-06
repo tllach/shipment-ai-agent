@@ -1,0 +1,117 @@
+from agent.llm import detect_intent
+
+# Mensajes base
+
+FALLBACK_MESSAGE = """Lo siento, no pude entender tu solicitud.
+
+Puedo ayudarte con:
+• 📦 Consultar el estado de un envío
+• 📅 Reprogramae una entrega o recolección
+• 🎫 Crear un ticket para reportar un problema
+
+¿Con cuál de estas opciones puedo ayudarte?"""
+
+UNKNOWN_INTENT_MESSAGE = """No estoy seguro de cómo ayudarte con eso.
+
+Mis capacidades actuales son:
+• 📦 Consultar estado de envíos → *"¿Dónde está mi envío 14309635?"*
+• 📅 Reprogramar entregas → *"Necesito cambiar la fecha de entrega"*
+• 🎫 Reportar un problema → *"Mi paquete llegó dañado"*
+
+¿Puedes reformular tu consulta?"""
+
+
+class Agent:
+    """
+    Orquestador principal del agente conversacional.
+
+    Mantiene el estado de la sesión:
+    - Historial de mensajes
+    - Handler activo (si hay una conversación en curso)
+    - Conteo de intentos desconocidos
+    """
+
+    def __init__(self, client_config: dict = None):
+        self.client_config = client_config or {}
+        self.history: list[dict] = []
+        self.active_handler = None
+        self.active_intent: str = None
+        self.max_unknown_attempts: int = 2
+        self._unknown_count: int = 0
+
+    def chat(self, user_message: str) -> str:
+        """
+        Procesa un mensaje del usuario y retorna la respuesta del agente.
+        Único método que necesita llamar la UI.
+        """
+        user_message = user_message.strip()
+        if not user_message:
+            return FALLBACK_MESSAGE
+
+        self.history.append({"role": "user", "content": user_message})
+        response = self._process(user_message)
+        self.history.append({"role": "assistant", "content": response})
+        return response
+
+    def _process(self, user_message: str) -> str:
+        """Lógica central de routing."""
+
+        # Caso 1: handler activo → continuar conversación en curso
+        if self.active_handler and not self.active_handler.is_done():
+            response = self.active_handler.handle(user_message)
+
+            if self.active_handler.is_done():
+                self.active_handler = None
+                self.active_intent = None
+
+            return response
+
+        # Caso 2: detectar nueva intención con LLM
+        try:
+            detection = detect_intent(user_message)
+        except RuntimeError as e:
+            return f"⚠️ {str(e)}"
+
+        intent = detection["intent"]
+        prefilled_id = detection.get("shipment_id")
+
+        # Routing
+        if intent == "STATUS_QUERY":
+            self._unknown_count = 0
+            #TODO: activar en el siguiente commit
+            return (
+                "Entendido, quieres consultar el estado de un envío.\n"
+            )
+
+        elif intent == "CREATE_TICKET":
+            self._unknown_count = 0
+            #TODO: agregar lógica para crear ticket
+            return (
+                "Lamentables lo sucedido. quieres crear un tiquete.\n"
+                "*(Módulo RESCHEDULE en construcción — próximo commit)*"
+            )
+
+        elif intent == "RESCHEDULE":
+            self._unknown_count = 0
+            # TODO: activar en el siguiente commit
+            return (
+                "Entendido, quieres reprogramar un envío.\n"
+                "*(Módulo RESCHEDULE en construcción — próximo commit)*"
+            )
+
+        else:
+            self._unknown_count += 1
+            if self._unknown_count >= self.max_unknown_attempts:
+                self._unknown_count = 0
+                return (
+                    "Parece que no puedo entender tu solicitud. "
+                    "Te voy a conectar con un agente humano que podrá ayudarte mejor. 👋"
+                )
+            return UNKNOWN_INTENT_MESSAGE
+
+    def reset(self):
+        """Reinicia la sesión completa."""
+        self.history = []
+        self.active_handler = None
+        self.active_intent = None
+        self._unknown_count = 0
