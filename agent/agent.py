@@ -1,4 +1,10 @@
 from agent.llm import detect_intent
+from agent.status.handler import StatusHandler
+
+
+# Señal interna — el handler soltó el control, el orquestador debe retomar
+_RELEASE_CONTROL = "__RELEASE__"
+
 
 # Mensajes base
 
@@ -6,7 +12,7 @@ FALLBACK_MESSAGE = """Lo siento, no pude entender tu solicitud.
 
 Puedo ayudarte con:
 • 📦 Consultar el estado de un envío
-• 📅 Reprogramae una entrega o recolección
+• 📅 Reprogramar una entrega o recolección
 • 🎫 Crear un ticket para reportar un problema
 
 ¿Con cuál de estas opciones puedo ayudarte?"""
@@ -63,40 +69,46 @@ class Agent:
             if self.active_handler.is_done():
                 self.active_handler = None
                 self.active_intent = None
+                
+                # El handler soltó el control → el usuario quiere algo más
+                if response == _RELEASE_CONTROL:
+                    return self._detect_and_route(user_message)
 
             return response
 
         # Caso 2: detectar nueva intención con LLM
+        return self._detect_and_route(user_message)
+
+
+    def _detect_and_route(self, user_message: str) -> str:
+        """Llama al LLM para detectar intención y delega al handler correcto."""
         try:
             detection = detect_intent(user_message)
         except RuntimeError as e:
-            return f"⚠️ {str(e)}"
+            return f"{str(e)}"
 
         intent = detection["intent"]
         prefilled_id = detection.get("shipment_id")
 
-        # Routing
         if intent == "STATUS_QUERY":
             self._unknown_count = 0
-            #TODO: activar en el siguiente commit
-            return (
-                "Entendido, quieres consultar el estado de un envío.\n"
-            )
+            handler = StatusHandler()
+            if prefilled_id:
+                handler.collected["shipment_id"] = prefilled_id
+            self.active_handler = handler
+            self.active_intent = intent
+            return handler.handle(user_message)
 
         elif intent == "CREATE_TICKET":
             self._unknown_count = 0
-            #TODO: agregar lógica para crear ticket
             return (
-                "Lamentables lo sucedido. quieres crear un tiquete.\n"
-                "*(Módulo RESCHEDULE en construcción — próximo commit)*"
+                "Lamentamos lo sucedido. Vamos a crear un ticket.\n"
             )
 
         elif intent == "RESCHEDULE":
             self._unknown_count = 0
-            # TODO: activar en el siguiente commit
             return (
                 "Entendido, quieres reprogramar un envío.\n"
-                "*(Módulo RESCHEDULE en construcción — próximo commit)*"
             )
 
         else:
@@ -108,10 +120,13 @@ class Agent:
                     "Te voy a conectar con un agente humano que podrá ayudarte mejor. 👋"
                 )
             return UNKNOWN_INTENT_MESSAGE
-
+        
+        
     def reset(self):
         """Reinicia la sesión completa."""
         self.history = []
         self.active_handler = None
         self.active_intent = None
         self._unknown_count = 0
+        return "He reiniciado nuestra conversación. ¿En qué puedo ayudarte ahora?"
+
