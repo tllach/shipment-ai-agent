@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 import json
 import uuid
 import os
@@ -38,9 +38,8 @@ for s in raw:
 TICKETS: list[dict] = []
 
 # Helpers and Models
-
 from api.helpers import derive_status, build_shipment_response;
-from api.models import TicketCreateRequest;
+from api.models import TicketCreateRequest, RescheduleRequest;
 
 # Routes 
 @app.get("/")
@@ -52,6 +51,7 @@ def root():
         "endpoints": [
             "GET  /shipments",
             "GET  /shipments/{shipment_id}",
+            "POST /shipments/{shipment_id}/reschedule",
             "POST /tickets",
             "GET  /tickets",
         ],
@@ -88,6 +88,59 @@ def get_shipment(shipment_id: str):
             detail=f"Shipment '{shipment_id}' not found. Please verify the shipment ID.",
         )
     return build_shipment_response(shipment)
+
+
+@app.post("/shipments/{shipment_id}/reschedule")
+def reschedule_shipment(shipment_id: str, body: RescheduleRequest):
+    """Reschedule pickup or delivery. Returns confirmation or validation error."""
+    shipment = SHIPMENTS.get(shipment_id)
+    if not shipment:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Shipment '{shipment_id}' not found.",
+        )
+
+    # Validate: new_date must not be in the past
+    try:
+        new_dt = datetime.strptime(body.new_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date format. Use YYYY-MM-DD (e.g. 2025-03-15).",
+        )
+
+    if new_dt < date.today():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot reschedule to a past date ({body.new_date}). Please provide a future date.",
+        )
+        
+
+    # Apply the change in memory
+    order_type = shipment["fax"].get("order_type", "")
+    
+    if order_type == "PU":
+        shipment["fax"]["date1"] = body.new_date
+        shipment["fax"]["time1"] = body.time_window
+        updated_stop = "pickup"
+    else:
+        shipment["fax"]["date2"] = body.new_date
+        shipment["fax"]["time2"] = body.time_window
+        updated_stop = "delivery"
+
+    return {
+        "success": True,
+        "shipment_id": shipment_id,
+        "message": f"Shipment {shipment_id} {updated_stop} rescheduled successfully.",
+        "updated": {
+            "new_date": body.new_date,
+            "time_window": body.time_window,
+            "reason": body.reason,
+            "rescheduled_at": datetime.now().isoformat() + "Z",
+        },
+        "new_status": derive_status(shipment),
+    }
+
 
 @app.post("/tickets", status_code=201)
 def create_ticket(body: TicketCreateRequest):
