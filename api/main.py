@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import json
@@ -22,6 +21,7 @@ app.add_middleware(
 )
 
 # Load shipments at startup 
+
 DATA_PATH = os.path.join(os.path.dirname(__file__), "shipments.json")
 
 with open(DATA_PATH, "r") as f:
@@ -37,18 +37,10 @@ for s in raw:
 # In-memory ticket store
 TICKETS: list[dict] = []
 
+# Helpers and Models
 
-# Models
-
-class TicketCreateRequest(BaseModel):
-    shipment_id: str
-    issue_type: str        # e.g. "DAMAGE", "DELAY", "MISSING", "OTHER"
-    description: str
-    severity: Optional[str] = "MEDIUM"   # LOW / MEDIUM / HIGH / CRITICAL
-    contact_email: Optional[str] = None
-    contact_phone: Optional[str] = None
-
-
+from api.helpers import derive_status, build_shipment_response;
+from api.models import TicketCreateRequest;
 
 # Routes 
 @app.get("/")
@@ -58,12 +50,44 @@ def root():
         "version": "1.0.0",
         "shipments_loaded": len(SHIPMENTS),
         "endpoints": [
+            "GET  /shipments",
+            "GET  /shipments/{shipment_id}",
             "POST /tickets",
             "GET  /tickets",
         ],
     }
 
+@app.get("/shipments")
+def list_shipments(
+    order_type: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    """List all shipments with optional filters."""
+    results = []
+    for shipment in SHIPMENTS.values():
+        fax = shipment["fax"]
+        # Filter by order_type
+        if order_type and fax.get("order_type", "").upper() != order_type.upper():
+            continue
+        built = build_shipment_response(shipment)
+        # Filter by derived status
+        if status and built["status"].upper() != status.upper():
+            continue
+        results.append(built)
 
+    return {"total": len(results), "shipments": results}
+
+
+@app.get("/shipments/{shipment_id}")
+def get_shipment(shipment_id: str):
+    """Get status, ETA, location, and details for a specific shipment."""
+    shipment = SHIPMENTS.get(shipment_id)
+    if not shipment:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Shipment '{shipment_id}' not found. Please verify the shipment ID.",
+        )
+    return build_shipment_response(shipment)
 
 @app.post("/tickets", status_code=201)
 def create_ticket(body: TicketCreateRequest):
@@ -76,7 +100,7 @@ def create_ticket(body: TicketCreateRequest):
         )
 
     # Validate issue_type
-    valid_issue_types = {"DAMAGE", "DELAY", "MISSING", "WRONG_DELIVERY", "BILLING", "OTHER"}
+    valid_issue_types = {"DAÑO", "RETRASO", "PEDIDO_FALTANTE", "ENTREGA_ERRÓNEA", "FACTURACIÓN", "OTROS"}
     if body.issue_type.upper() not in valid_issue_types:
         raise HTTPException(
             status_code=400,
@@ -84,7 +108,7 @@ def create_ticket(body: TicketCreateRequest):
         )
 
     # Validate severity
-    valid_severities = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+    valid_severities = {"BAJA", "MEDIA", "ALTA", "CRITICA"}
     severity = (body.severity or "MEDIUM").upper()
     if severity not in valid_severities:
         raise HTTPException(
@@ -108,7 +132,7 @@ def create_ticket(body: TicketCreateRequest):
 
     return {
         "success": True,
-        "message": "Ticket created successfully. Our team will contact you shortly.",
+        "message": "El tiquete ha sido creado exitosamente.",
         "ticket": ticket,
     }
 
