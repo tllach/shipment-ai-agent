@@ -159,22 +159,13 @@ def create_ticket(body: TicketCreateRequest):
             status_code=400,
             detail=f"Invalid issue_type '{body.issue_type}'. Valid options: {sorted(valid_issue_types)}",
         )
-
-    # Validate severity
-    valid_severities = {"BAJA", "MEDIA", "ALTA", "CRITICA"}
-    severity = (body.severity or "MEDIUM").upper()
-    if severity not in valid_severities:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid severity '{body.severity}'. Valid options: {sorted(valid_severities)}",
-        )
-
+    
+    
     ticket = {
         "ticket_id": f"TKT-{str(uuid.uuid4())[:8].upper()}",
         "shipment_id": body.shipment_id,
         "issue_type": body.issue_type.upper(),
         "description": body.description,
-        "severity": severity,
         "contact_email": body.contact_email,
         "contact_phone": body.contact_phone,
         "status": "OPEN",

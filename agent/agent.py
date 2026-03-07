@@ -1,5 +1,6 @@
 from agent.llm import detect_intent
 from agent.status.handler import StatusHandler
+from agent.tickets.handler import TicketHandler
 
 
 # Señal interna — el handler soltó el control, el orquestador debe retomar
@@ -101,9 +102,13 @@ class Agent:
 
         elif intent == "CREATE_TICKET":
             self._unknown_count = 0
-            return (
-                "Lamentamos lo sucedido. Vamos a crear un ticket.\n"
-            )
+            # Si el LLM detectó un shipment_id, iniciamos el proceso de ticket con ese dato
+            handler = TicketHandler()
+            if prefilled_id:
+                handler.collected["shipment_id"] = prefilled_id
+            self.active_handler = handler
+            self.active_intent = intent
+            return handler.handle(user_message)
 
         elif intent == "RESCHEDULE":
             self._unknown_count = 0
