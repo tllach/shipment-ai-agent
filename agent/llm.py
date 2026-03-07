@@ -88,13 +88,13 @@ def build_response_prompt(client_config: dict) -> str:
     Construye el system prompt para generación de respuestas
     según el tono y políticas del cliente.
     """
-    tone    = client_config.get("tone", "formal")
-    name    = client_config.get("name", "LogiBot")
-    lang    = client_config.get("language", "es")
+    tone = client_config.get("tone", "formal")
+    name = client_config.get("name", "LogiBot")
+    lang = client_config.get("language", "es")
     policies = client_config.get("policies", {})
 
-    no_hallucination      = policies.get("no_hallucination", True)
-    escalate_after        = policies.get("escalate_after_attempts", 2)
+    no_hallucination = policies.get("no_hallucination", True)
+    escalate_after = policies.get("escalate_after_attempts", 2)
     allow_language_switch = policies.get("allow_language_switch", True)
 
     tone_instructions = {
@@ -141,9 +141,10 @@ Recuerda: eres la cara de {name}. Cada respuesta refleja la calidad del servicio
 
 # Core LLM functions
 
-def chat(messages: list[dict], temperature: float = 0.2) -> str:
+def chat(messages: list[dict], temperature: float = 0.2, retries: int = 2) -> str:
     """
     Envía mensajes a Ollama y retorna la respuesta como string.
+    Timeout generoso porque llama3.2 tarda en cargar en la primera llamada.
     """
     payload = {
         "model": MODEL,
@@ -154,20 +155,26 @@ def chat(messages: list[dict], temperature: float = 0.2) -> str:
         },
     }
 
-    try:
-        resp = requests.post(OLLAMA_URL, json=payload, timeout=30)
-        resp.raise_for_status()
-        return resp.json()["message"]["content"].strip()
+    for attempt in range(retries + 1):
+        try:
+            resp = requests.post(OLLAMA_URL, json=payload, timeout=120)
+            resp.raise_for_status()
+            return resp.json()["message"]["content"].strip()
 
-    except requests.exceptions.ConnectionError:
-        raise RuntimeError(
-            "No se pudo conectar a Ollama. "
-            "Asegúrate de que esté corriendo con: ollama serve"
-        )
-    except requests.exceptions.Timeout:
-        raise RuntimeError("Ollama tardó demasiado en responder. Intenta de nuevo.")
-    except Exception as e:
-        raise RuntimeError(f"Error inesperado con Ollama: {e}")
+        except requests.exceptions.ConnectionError:
+            raise RuntimeError(
+                "No se pudo conectar a Ollama. "
+                "Asegúrate de que esté corriendo con: ollama serve"
+            )
+        except requests.exceptions.Timeout:
+            if attempt < retries:
+                continue   # reintentar
+            raise RuntimeError(
+                "Ollama tardó demasiado en responder. "
+                "Si es la primera vez que usas el modelo, espera unos segundos y vuelve a intentar."
+            )
+        except Exception as e:
+            raise RuntimeError(f"Error inesperado con Ollama: {e}")
 
 
 def detect_intent(user_message: str) -> dict:
