@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from agent.agent import Agent
 
-# ── Colores para la terminal ──────────────────────────────────────────────────
+# Colores para la terminal
 class C:
     USER  = "\033[96m"   # cyan
     BOT   = "\033[92m"   # verde
@@ -157,7 +157,7 @@ def main():
         if not user_input:
             continue
 
-        # ── Comandos especiales ────────────────────────────────────────────
+        # Comandos especiales
         if user_input == "/salir":
             print(f"{C.INFO}¡Hasta luego!{C.RESET}")
             break
@@ -183,7 +183,7 @@ def main():
             scenario_key = user_input.split(" ", 1)[1].strip()
             run_scenario(agent, scenario_key)
 
-        # ── Conversación normal ────────────────────────────────────────────
+        # Conversación normal
         else:
             response = agent.chat(user_input)
             print(f"{C.BOT}Bot:{C.RESET} {response}\n")
