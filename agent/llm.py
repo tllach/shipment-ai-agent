@@ -14,7 +14,7 @@ INTENCIONES DISPONIBLES
 
 STATUS_QUERY
 → El usuario quiere saber dónde está un envío, su estado actual, ETA o historial.
-→ Ejemplos: "¿dónde está mi paquete?", "estado del envío 123", "when will my order arrive?","quiero saber del envío", "track my shipment"
+→ Ejemplos: "¿dónde está mi paquete?", "estado del envío 123", "when will my order arrive?", "quiero saber del envío", "track my shipment"
 
 RESCHEDULE
 → El usuario quiere cambiar la fecha o el horario de una entrega o recolección.
@@ -33,8 +33,7 @@ GREETING
 → Ejemplos: "hola", "buenas", "hello", "gracias", "thanks", "ok", "perfecto"
 
 UNKNOWN
-→ SOLO usar si el mensaje no encaja en ninguna de las categorías anteriores y no hay forma razonable de inferir una intención logística.
-→ Ejemplos: "¿cuánto cuesta enviar?", "¿tienen sucursal en Bogotá?"
+→ SOLO usar si el mensaje no encaja en ninguna de las categorías anteriore y no hay forma razonable de inferir una intención logística.→ Ejemplos: "¿cuánto cuesta enviar?", "¿tienen sucursal en Bogotá?"
 
 ═══════════════════════════════════════════════
 EXTRACCIÓN DE ENTIDADES
@@ -42,8 +41,12 @@ EXTRACCIÓN DE ENTIDADES
 
 Extrae estas entidades si están presentes en el mensaje:
 
-- shipment_id : ID alfanumérico del envío (ej: "14309635", "H624599IDL"). Si no hay ID claro, pon null.
-- new_date    : Fecha mencionada en formato YYYY-MM-DD si es posible, si no, el texto tal cual. Ej: "el lunes" → "el lunes", "2025-04-15" → "2025-04-15". Si no hay, null.
+- shipment_id : ID alfanumérico del envío (ej: "14309635", "H624599IDL").
+                REGLA CRÍTICA: solo extrae el shipment_id si aparece LITERALMENTE en el mensaje.
+                Si el mensaje NO contiene un número o código explícito → pon null.
+                NUNCA inventes, asumas ni recuerdes IDs de mensajes anteriores.
+- new_date    : Fecha mencionada en formato YYYY-MM-DD si es posible, si no, el texto tal cual.
+                Ej: "el lunes" → "el lunes", "2025-04-15" → "2025-04-15". Si no hay, null.
 - time_window : Horario o franja horaria mencionada. Ej: "en la mañana", "08:00-12:00". Si no hay, null.
 - language    : Idioma del mensaje. "es" para español, "en" para inglés.
 
@@ -96,14 +99,14 @@ def build_response_prompt(client_config: dict) -> str:
 
     tone_instructions = {
         "formal": (
-            "Usa un lenguaje formal y profesional. "
-            "Tratar al usuario de 'usted'. "
+            "Usa un lenguaje formal y profesional."
+            "Tratar al usuario de 'usted'."
             "Evita emojis. Sé conciso y preciso."
         ),
         "casual": (
-            "Usa un lenguaje cercano y amigable. "
+            "Usa un lenguaje cercano y amigable."
             "Tratar al usuario de 'tú'. "
-            "Puedes usar emojis con moderación baja. "
+            "Puedes usar emojis con moderación baja."
             "Sé cálido y empático."
         ),
     }
