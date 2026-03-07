@@ -6,6 +6,7 @@ from agent.tickets.tool_tickets import (
     get_tickets_for_shipment,
 )
 from agent.config import get_message, get_policy
+from agent.tools import get_shipment_status
 
 CANCEL_WORDS  = {"cancel", "cancelar", "stop", "salir", "abortar"}
 CONFIRM_WORDS = {"si", "sí", "yes"}
@@ -15,8 +16,10 @@ MAX_RETRIES   = 3
 
 class TicketHandler:
     """
-    Handler para CREATE_TICKET.
-    Recibe el config del cliente para usar sus mensajes y políticas.
+    Validación del shipment_id en dos pasos (antes de pedir más datos):
+        1. Verificar que el envío existe en el API
+        2. Verificar que NO tiene ticket activo
+    Si cualquiera falla → informar y terminar. No se piden más datos.
     """
 
     def __init__(self, config: dict = None):
@@ -59,7 +62,13 @@ class TicketHandler:
 
             if not success:
                 return self._handle_retry(slot_key, error)
-
+            
+            # Validación temprana del shipment_id, antes de pedir más datos
+            if slot_key == "shipment_id":
+                early_check = self._validate_shipment_id(user_message.strip())
+                if early_check:
+                    return early_check
+            
             if slot_key == "description" and len(user_message) < 15:
                 return self._handle_retry(
                     slot_key,
@@ -69,6 +78,34 @@ class TicketHandler:
             self.current_slot = None
 
         return self._next_turn()
+    
+    
+    def _validate_shipment_id(self, shipment_id: str) -> str | None:
+        """
+        Valida el shipment_id en dos pasos:
+            1. ¿Existe el envío?
+            2. ¿Ya tiene un ticket activo?
+        Retorna mensaje de error si falla, None si todo está bien.
+        """
+        
+        #  verificar que el envío existe
+        status_resp = get_shipment_status(shipment_id)
+        if not status_resp.get("success"):
+            self.done = True
+            if status_resp.get("not_found"):
+                return self._msg(
+                    "status_not_found",
+                    id=shipment_id
+                ) or f"No encontré ningún envío con el ID '{shipment_id}'. Por favor verifica el número."
+            return f"⚠️ {status_resp.get('error', 'Error al consultar el envío.')}"
+
+        # verificar que no tiene ticket activo
+        ticket_resp = get_tickets_for_shipment(shipment_id)
+        if ticket_resp.get("success") and ticket_resp.get("data"):
+            self.done = True
+            return self._msg("ticket_exists", id=shipment_id)
+
+        return None
 
     def _handle_retry(self, slot_key: str, error: str) -> str:
         self.attempts[slot_key] = self.attempts.get(slot_key, 0) + 1

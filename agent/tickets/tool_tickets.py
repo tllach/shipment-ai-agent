@@ -3,10 +3,6 @@ from typing import Optional
 import re
 
 
-from agent.tools import (
-    get_shipment_status,
-)
-
 EMAIL_REGEX = r"[^@]+@[^@]+\.[^@]+"
 API_BASE = "http://localhost:8000"
 
@@ -26,8 +22,6 @@ TICKET_SLOTS = [
     {
         "key": "shipment_id",
         "question": "Por favor, proporcione su ID de envío para que podamos localizar su pedido.",
-        "validator": lambda v: bool(get_shipment_status(v).get("success", False) ),
-        "error": "No se encontró ningún envío con ese ID. Por favor, verifique su ID de envío e inténtelo de nuevo.",
         "required": True,
     },
     {
@@ -49,7 +43,7 @@ TICKET_SLOTS = [
     },
     {
         "key": "contact_email",
-        "question": "¿Cuál es su dirección de correo electrónico para que podamos seguir up con usted?",
+        "question": "¿Cuál es su dirección de correo electrónico para que podamos seguir con usted?",
         "validator": lambda v: re.match(EMAIL_REGEX, v),
         "error": "Por favor, ingrese una dirección de correo electrónico válida.",
         "required": True,
@@ -113,7 +107,7 @@ def apply_defaults(collected: dict) -> dict:
 def create_ticket(slots: dict) -> dict:
     """ Call POST /tickets with the collected slots. Returns the API response dict or raises on error. """
     slots = apply_defaults(slots)
-
+    
     payload = {
         "shipment_id": slots["shipment_id"],
         "issue_type": slots["issue_type"].upper(),
@@ -121,24 +115,12 @@ def create_ticket(slots: dict) -> dict:
         "contact_email": slots.get("contact_email"),
         "contact_phone": slots.get("contact_phone"),
     }
-
     try:
-        existing = get_tickets_for_shipment(payload["shipment_id"])
-
-        if existing["success"] and existing["data"]:
-            return (
-                "Ya existe un ticket asociado a este envío.\n"
-                "Nuestro equipo ya está revisando el caso."
-            )
-        
         resp = requests.post(f"{API_BASE}/tickets", json=payload, timeout=5)
         resp.raise_for_status()
         return {"success": True, "data": resp.json()}
     except requests.exceptions.ConnectionError:
-        return {
-            "success": False,
-            "error": "Could not connect to the logistics API. Please try again later.",
-        }
+        return {"success": False, "error": "No se pudo conectar al sistema. Intente más tarde."}
     except requests.exceptions.HTTPError as e:
         try:
             detail = e.response.json().get("detail", str(e))
@@ -157,12 +139,15 @@ def get_tickets_for_shipment(shipment_id: str) -> dict:
             params={"shipment_id": shipment_id},
             timeout=5,
         )
+        if resp.status_code == 404:
+            return {"success": True, "data": []}   # 404 = sin tickets, no es error
+        
         resp.raise_for_status()
-        return {"success": True, "data": resp.json()}
+        data = resp.json()
+        tickets = data.get("tickets", data) if isinstance(data, dict) else data
+        return {"success": True, "data": tickets}
+    
     except requests.exceptions.ConnectionError:
-        return {
-            "success": False,
-            "error": "Could not connect to the logistics API.",
-        }
+        return {"success": False, "error": "No se pudo conectar al sistema."}
     except requests.exceptions.HTTPError as e:
         return {"success": False, "error": str(e)}
