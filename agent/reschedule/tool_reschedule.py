@@ -8,6 +8,8 @@ API_BASE = "http://localhost:8000"
 
 #  Validadores 
 
+NON_RESCHEDULABLE_STATUSES = {"DELIVERED", "TRANSFERRED"}
+
 def _valid_date(v: str) -> bool:
     """Valida formato YYYY-MM-DD y que no sea fecha pasada."""
     try:
@@ -15,6 +17,19 @@ def _valid_date(v: str) -> bool:
         return d >= datetime.today().date()
     except ValueError:
         return False
+
+
+def _normalize_time(t: str) -> str:
+    """
+    Normaliza un tiempo HH:MM o H:MM a formato HH:MM con cero padding.
+    Ej: "8:00" → "08:00", "08:00" → "08:00"
+    """
+    t = t.strip()
+    parts = t.split(":")
+    if len(parts) == 2:
+        return f"{int(parts[0]):02d}:{parts[1].zfill(2)}"
+    return t
+
 
 def _valid_time_window(v: str) -> bool:
     """Valida formato HH:MM-HH:MM (ej: 08:00-12:00)."""
@@ -29,6 +44,34 @@ def _valid_time_window(v: str) -> bool:
         return False
 
 
+def normalize_time_window(v: str) -> str:
+    """
+    Normaliza un time_window completo a formato estándar HH:MM-HH:MM.
+    Ej: "8:00-12:00" → "08:00-12:00"
+    """
+    try:
+        parts = v.strip().split("-")
+        if len(parts) == 2:
+            return f"{_normalize_time(parts[0])}-{_normalize_time(parts[1])}"
+    except Exception:
+        pass
+    return v
+
+
+def days_until(date_str: str) -> str:
+    """Retorna texto relativo: '(en 3 días)', '(hoy)', '(mañana)'."""
+    try:
+        from datetime import date
+        target = datetime.strptime(date_str, "%Y-%m-%d").date()
+        delta  = (target - date.today()).days
+        if delta == 0:   return " (hoy)"
+        if delta == 1:   return " (mañana)"
+        if delta > 1:    return f" (en {delta} días)"
+        if delta == -1:  return " (ayer)"
+        return f" (hace {abs(delta)} días)"
+    except ValueError:
+        return ""
+
 # Slot definition
 
 RESCHEDULE_SLOTS = [
@@ -36,8 +79,6 @@ RESCHEDULE_SLOTS = [
         "key": "shipment_id",
         "question": "¿Cuál es el número de envío que deseas reprogramar?",
         "required": True,
-        "validator": lambda v: bool(get_shipment_status(v).get("success", False)),
-        "error": "No encontré un envío con ese ID. Por favor verifica el número e intenta de nuevo.",
     },
     {
         "key": "new_date",

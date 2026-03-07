@@ -1,10 +1,16 @@
 from agent.reschedule.tool_reschedule import (
     RESCHEDULE_SLOTS,
+    NON_RESCHEDULABLE_STATUSES,
     get_next_missing_slot,
     fill_slot,
     do_reschedule,
+    days_until,
+    normalize_time_window,
+    _valid_date,
+    _valid_time_window,
 )
 
+from agent.tools import get_shipment_status
 from agent.config import get_message, get_policy
 
 CANCEL_WORDS  = {"cancel", "cancelar", "stop", "salir", "abortar"}
@@ -16,10 +22,16 @@ MAX_RETRIES   = 3
 class RescheduleHandler:
     """
     Handler para RESCHEDULE.
-    Recibe el config del cliente para usar sus mensajes y políticas.
-    
-    """
+    Validación del shipment_id en dos pasos (antes de pedir más datos):
+        1. Verificar que el envío existe
+        2. Verificar que el estado permite reprogramación (no DELIVERED/TRANSFERRED)
 
+    Mejoras adicionales:
+        - Fecha y horario pre-llenados por el LLM se validan antes de usarlos
+        - Horario flexible: "8:00-12:00" → normalizado a "08:00-12:00"
+        - Confirmación muestra días restantes para la nueva fecha
+    """
+    
     def __init__(self, config: dict = None):
         self.config = config or {}
         self.collected = {}
@@ -28,6 +40,7 @@ class RescheduleHandler:
         self.result = None
         self.attempts = {}
         self.max_retries = get_policy(self.config, "escalate_after_attempts", MAX_RETRIES)
+        self._shipment_data = {}   # guarda datos del envío tras validación
 
         self.awaiting_confirmation = False
         self.awaiting_edit_choice  = False
@@ -61,9 +74,47 @@ class RescheduleHandler:
             if not success:
                 return self._handle_retry(slot_key, error)
 
+            if slot_key == "shipment_id":
+                early_check = self._validate_shipment_id(self.collected["shipment_id"])
+                if early_check:
+                    return early_check
+            
             self.current_slot = None
 
         return self._next_turn()
+
+    def _validate_shipment_id(self, shipment_id: str) -> str | None:
+        """
+        Valida el shipment_id en dos pasos:
+            1. ¿Existe el envío?
+            2. ¿Su estado permite reprogramación?
+        Retorna mensaje de error si falla, None si todo está bien.
+        """
+        resp = get_shipment_status(shipment_id)
+
+        if not resp.get("success"):
+            self.done = True
+            if resp.get("not_found"):
+                return (
+                    self._msg("status_not_found", id=shipment_id) or
+                    f"No encontré ningún envío con el ID '{shipment_id}'. Por favor verifica el número."
+                )
+            return f"⚠️ {resp.get('error', 'Error al consultar el envío.')}"
+
+        # Guardar datos del envío para usarlos en la confirmación
+        self._shipment_data = resp["data"]
+        status = self._shipment_data.get("status", "")
+
+        if status in NON_RESCHEDULABLE_STATUSES:
+            self.done = True
+            label = STATUS_LABEL.get(status, status)
+            return (
+                f"El envío {shipment_id} no puede reprogramarse porque ya está en estado "
+                f"**{label}**.\n\n"
+                "Si tienes algún problema con este envío, puedo ayudarte a crear un ticket de soporte."
+            )
+
+        return None
 
     def _handle_retry(self, slot_key: str, error: str) -> str:
         self.attempts[slot_key] = self.attempts.get(slot_key, 0) + 1
