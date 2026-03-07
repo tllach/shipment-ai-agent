@@ -22,6 +22,7 @@ message_formats:
   status_update: >
     ¡Hola! Tu envío {id} está actualmente en estado {status} 🚚.
     Sale desde {origin} y va hacia {destination}.
+    La fecha estimada de entrega es {estimated_delivery} 📅.
 
   status_not_found: >
     Hmm, no encontré ningún envío con el ID {id} 🤔.

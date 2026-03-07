@@ -22,6 +22,7 @@ message_formats:
   status_update: >
     Estimado cliente, el envío {id} se encuentra actualmente en estado {status}.
     Origen: {origin} — Destino: {destination}.
+    La fecha estimada de entrega es {estimated_delivery}.
 
   status_not_found: >
     Lamentamos informarle que no encontramos ningún envío con el ID {id}.
@@ -48,7 +49,6 @@ message_formats:
     Lamentamos informarle que su envío {id} ha sufrido un retraso.
     La nueva fecha estimada de entrega es {new_date}. Disculpe los inconvenientes.
 
-  # Errores y fallbacks
   fallback: >
     Lo sentimos, este caso requiere atención especializada.
     Le conectaremos con un agente humano en breve.
