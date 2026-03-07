@@ -55,9 +55,18 @@ def get_message(config: dict, key: str, **kwargs) -> str:
         return ""
     try:
         return template.strip().format(**kwargs)
-    except KeyError:
-        # Si falta alguna variable, retornar el template sin formatear
-        return template.strip()
+    except KeyError as e:
+        # Variable faltante → loguear y usar format_map con fallback a string vacío
+        import re
+        # Reemplazar variables no provistas con cadena vacía
+        filled = template.strip()
+        for placeholder in re.findall(r"{(\w+)}", filled):
+            if placeholder not in kwargs:
+                filled = filled.replace("{" + placeholder + "}", "")
+        try:
+            return filled.format(**kwargs)
+        except Exception:
+            return filled
 
 
 def get_policy(config: dict, key: str, default=None):

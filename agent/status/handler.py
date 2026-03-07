@@ -63,10 +63,19 @@ class StatusHandler:
             self.done = True
             return self._msg("farewell")
 
-        # Usuario quiere algo más → mostrar opciones y soltar control
+        # Usuario quiere algo más → mostrar menú y marcar done
+        # El agente principal retoma el control en el próximo turno
         self._waiting_followup = False
         self.done = True
-        return self._msg("unknown_intent")
+        follow_up_menu = self._msg("follow_up_menu")
+        if not follow_up_menu:
+            follow_up_menu = (
+                "¿En qué más puedo ayudarte?\n\n"
+                "• Reprogramar este envío"
+                "• Reportar un problema"
+                "• Consultar otro envío"
+            )
+        return follow_up_menu
 
     def _next_turn(self) -> str:
         next_slot = get_next_missing_slot(self.collected)
@@ -83,10 +92,10 @@ class StatusHandler:
         self.result = response
 
         if response["success"]:
-            data   = response["data"]
+            data = response["data"]
             status = data.get("status", "")
             origin = data.get("origin", {})
-            dest   = data.get("destination", {})
+            dest = data.get("destination", {})
 
             # Intentar usar el mensaje del cliente primero
             client_msg = self._msg(
