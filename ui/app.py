@@ -86,6 +86,33 @@ st.markdown("""
         border-color: #3b82f6 !important;
         box-shadow: 0 0 0 2px rgba(59,130,246,0.2) !important;
     }
+    
+    .typing {
+        display: inline-flex;
+        gap: 4px;
+    }
+
+    .typing span {
+        width: 6px;
+        height: 6px;
+        background: #94a3b8;
+        border-radius: 50%;
+        animation: blink 1.4s infinite both;
+    }
+
+    .typing span:nth-child(2) {
+        animation-delay: .2s;
+    }
+
+    .typing span:nth-child(3) {
+        animation-delay: .4s;
+    }
+
+    @keyframes blink {
+        0% {opacity:.2}
+        20% {opacity:1}
+        100% {opacity:.2}
+    }
 
     /* Selectbox */
     .stSelectbox > div > div {
@@ -171,12 +198,15 @@ def handler_badge(handler_name: str) -> str:
 
 
 def init_session(client_name: str = None):
-    st.session_state.agent    = Agent(client_name=client_name)
+    st.session_state.agent = Agent(client_name=client_name)
     st.session_state.messages = []
     st.session_state.last_intent = None
     greeting = st.session_state.agent.chat("")
     st.session_state.messages.append({"role": "bot", "content": greeting})
 
+
+if "thinking" not in st.session_state:
+    st.session_state.thinking = False
 
 # Init state
 
@@ -254,35 +284,84 @@ with main_col:
                 <div class="bot-avatar">🤖</div>
                 <div class="bubble">{content}</div>
             </div>'''
+    
+    if st.session_state.thinking:
+        html += '''
+        <div class="msg-bot">
+            <div class="bot-avatar">🤖</div>
+            <div class="bubble">
+                <div class="typing">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+        </div>
+        '''
+    
     html += '</div>'
     st.markdown(html, unsafe_allow_html=True)
+    st.markdown("""
+        <script>
+        const chat = window.parent.document.querySelector('#chat-box');
+        if(chat){
+            chat.scrollTop = chat.scrollHeight;
+        }
+        </script>
+        """, unsafe_allow_html=True)
 
     # Input
     with st.form(key="chat_form", clear_on_submit=True):
         c1, c2 = st.columns([5, 1])
         with c1:
             user_input = st.text_input(
-                "msg", placeholder="Escribe tu mensaje aquí...",
+                "msg",
+                placeholder="Escribe tu mensaje aquí...",
                 label_visibility="collapsed",
+                disabled=st.session_state.thinking
             )
         with c2:
-            submitted = st.form_submit_button("Enviar", use_container_width=True)
+            submitted = st.form_submit_button(
+                "Enviar",
+                use_container_width=True,
+                disabled=st.session_state.thinking
+            )
 
-    if submitted and user_input.strip():
-        st.session_state.messages.append({"role": "user", "content": user_input.strip()})
+    if st.session_state.thinking and "pending_message" in st.session_state:
 
-        with st.spinner(""):
-            # Capturar intent antes de chatear
-            from agent.llm import detect_intent
-            try:
-                detection = detect_intent(user_input.strip())
-                st.session_state.last_intent = detection.get("intent", "UNKNOWN")
-            except Exception:
-                st.session_state.last_intent = "—"
+        msg = st.session_state.pending_message
+        
+        from agent.llm import detect_intent
 
-            response = st.session_state.agent.chat(user_input.strip())
+        try:
+            detection = detect_intent(msg)
+            st.session_state.last_intent = detection.get("intent", "UNKNOWN")
+        except Exception:
+            st.session_state.last_intent = "UNKNOWN"
 
-        st.session_state.messages.append({"role": "bot", "content": response})
+        response = st.session_state.agent.chat(msg)
+
+        st.session_state.messages.append({
+            "role": "bot",
+            "content": response
+        })
+
+        st.session_state.thinking = False
+        del st.session_state.pending_message
+
+        st.rerun()
+    
+    if submitted and user_input.strip() and not st.session_state.thinking:
+        # mostrar mensaje
+        st.session_state.messages.append({
+            "role": "user",
+            "content": user_input.strip()
+        })
+
+        # guardar mensaje para procesarlo luego
+        st.session_state.pending_message = user_input.strip()
+
+        # activar estado thinking
+        st.session_state.thinking = True
+
         st.rerun()
 
 
