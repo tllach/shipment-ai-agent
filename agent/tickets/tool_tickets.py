@@ -1,11 +1,13 @@
-
 import requests
 from typing import Optional
+import re
+
 
 from agent.tools import (
     get_shipment_status,
 )
 
+EMAIL_REGEX = r"[^@]+@[^@]+\.[^@]+"
 API_BASE = "http://localhost:8000"
 
 # Valid values (mirrors API validation)
@@ -41,12 +43,14 @@ TICKET_SLOTS = [
     {
         "key": "description",
         "question": "Por favor, describa el problema en detalle.",
+        "validator": lambda v: len(v.strip()) > 15,
+        "error": "La descripción es muy corta. Por favor, proporcione más detalles sobre el problema.",
         "required": True,
     },
     {
         "key": "contact_email",
         "question": "¿Cuál es su dirección de correo electrónico para que podamos seguir up con usted?",
-        "validator": lambda v: "@" in v and "." in v,  # Simple email validation
+        "validator": lambda v: re.match(EMAIL_REGEX, v),
         "error": "Por favor, ingrese una dirección de correo electrónico válida.",
         "required": True,
     },
@@ -106,7 +110,6 @@ def apply_defaults(collected: dict) -> dict:
 
 # API calls
 
-
 def create_ticket(slots: dict) -> dict:
     """ Call POST /tickets with the collected slots. Returns the API response dict or raises on error. """
     slots = apply_defaults(slots)
@@ -120,6 +123,14 @@ def create_ticket(slots: dict) -> dict:
     }
 
     try:
+        existing = get_tickets_for_shipment(payload["shipment_id"])
+
+        if existing["success"] and existing["data"]:
+            return (
+                "Ya existe un ticket asociado a este envío.\n"
+                "Nuestro equipo ya está revisando el caso."
+            )
+        
         resp = requests.post(f"{API_BASE}/tickets", json=payload, timeout=5)
         resp.raise_for_status()
         return {"success": True, "data": resp.json()}
