@@ -1,5 +1,5 @@
-from agent.llm import detect_intent, generate_response
-from agent.config import load_client_config, get_message, get_policy, get_tone
+from agent.llm import detect_intent
+from agent.config import load_client_config, get_message, get_policy
 from agent.status.handler import StatusHandler
 from agent.tickets.handler import TicketHandler
 from agent.reschedule.handler import RescheduleHandler
@@ -31,12 +31,12 @@ class Agent:
         else:
             self.config = self._default_config()
 
-        self.client_name    = client_name
-        self.history        = []
+        self.client_name = client_name
+        self.history = []
         self.active_handler = None
-        self.active_intent  = None
+        self.active_intent = None
         self._unknown_count = 0
-        self._max_unknown   = get_policy(self.config, "escalate_after_attempts", 2)
+        self._max_unknown = get_policy(self.config, "escalate_after_attempts", 2)
 
 
     def chat(self, user_message: str) -> str:
@@ -53,9 +53,9 @@ class Agent:
 
     def reset(self) -> str:
         """Reinicia la sesión completa."""
-        self.history        = []
+        self.history = []
         self.active_handler = None
-        self.active_intent  = None
+        self.active_intent = None
         self._unknown_count = 0
         return self._msg("greeting")
 
@@ -69,7 +69,7 @@ class Agent:
 
             if self.active_handler.is_done():
                 self.active_handler = None
-                self.active_intent  = None
+                self.active_intent = None
 
                 if response == _RELEASE_CONTROL:
                     return self._detect_and_route(user_message)
@@ -85,7 +85,7 @@ class Agent:
         except RuntimeError as e:
             return f"⚠️ {str(e)}"
 
-        intent       = detection["intent"]
+        intent = detection["intent"]
         prefilled_id = detection.get("shipment_id")
         prefilled_date = detection.get("new_date")
         prefilled_time = detection.get("time_window")
@@ -100,14 +100,14 @@ class Agent:
             # Si hay handler activo, cancelarlo
             if self.active_handler:
                 self.active_handler = None
-                self.active_intent  = None
+                self.active_intent = None
             return self._msg("cancel_confirmation")
 
 
         if intent == "STATUS_QUERY":
             self._unknown_count = 0
-            handler = StatusHandler()
-            if prefilled_id:
+            handler = StatusHandler(config=self.config) 
+            if prefilled_id and prefilled_id in user_message:
                 handler.collected["shipment_id"] = prefilled_id
             self.active_handler = handler
             self.active_intent  = intent
@@ -115,8 +115,8 @@ class Agent:
 
         elif intent == "CREATE_TICKET":
             self._unknown_count = 0
-            handler = TicketHandler()
-            if prefilled_id:
+            handler = TicketHandler(config=self.config)
+            if prefilled_id and prefilled_id in user_message:
                 handler.collected["shipment_id"] = prefilled_id
             self.active_handler = handler
             self.active_intent  = intent
@@ -124,8 +124,8 @@ class Agent:
 
         elif intent == "RESCHEDULE":
             self._unknown_count = 0
-            handler = RescheduleHandler()
-            if prefilled_id:
+            handler = RescheduleHandler(config=self.config)
+            if prefilled_id and prefilled_id in user_message:
                 handler.collected["shipment_id"] = prefilled_id
             # Pre-llenar fecha y horario si el LLM los extrajo
             if prefilled_date:
@@ -133,7 +133,7 @@ class Agent:
             if prefilled_time:
                 handler.collected["time_window"] = prefilled_time
             self.active_handler = handler
-            self.active_intent  = intent
+            self.active_intent = intent
             return handler.handle(user_message)
 
         # UNKOWN
@@ -154,6 +154,7 @@ class Agent:
         msg = get_message(self.config, key, name=self.config.get("name", "LogiBot"), **kwargs)
         if msg:
             return msg
+        
         # Fallbacks hardcodeados por si el YAML no tiene la clave
         fallbacks = {
             "greeting":            "¿En qué puedo ayudarle?",

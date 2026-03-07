@@ -3,55 +3,43 @@ from agent.status.tool_status import (
     fill_slot,
     format_status_response,
 )
+from agent.tools import get_shipment_status
+from agent.config import get_message, get_policy
 
-from agent.tools import (
-    get_shipment_status
-)
-
-# Respuestas que indican que el usuario no necesita más ayuda
-NEGATIVE_RESPONSES = {"no", "nope", "nada", "gracias", "no gracias", "está bien", "no, gracias",
-                      "listo", "ok", "okay", "perfecto", "eso es todo", "bye", "adiós", "no creo"}
-
-FAREWELL_MESSAGE = "¡Con gusto! Si necesitas algo más, no dudes en escribirme. 👋"
-
-FOLLOW_UP_MESSAGE = "\n¿Necesitas hacer algo más con este envío?"
+NEGATIVE_RESPONSES = {
+    "no", "nope", "nada", "gracias", "no gracias", "está bien", "no, gracias",
+    "listo", "ok", "okay", "perfecto", "eso es todo", "bye", "adiós", "no creo"
+}
 
 # Señal interna para que el orquestador retome el control
 _RELEASE_CONTROL = "__RELEASE__"
 
+
 class StatusHandler:
     """
-    Handler para la intención STATUS_QUERY.
-
-    Flujo:
-        1. Si falta shipment_id → preguntarlo
-        2. Consultar GET /shipments/{id}
-        3. Formatear y retornar respuesta + pregunta de seguimiento
-        4. Si el usuario dice "no" → despedirse y marcar done
-        5. Si el usuario dice "sí" → el agente principal retoma el control
+    Handler para STATUS_QUERY.
+    Recibe el config del cliente para usar sus mensajes y políticas.
     """
 
-    def __init__(self, max_attempts: int = 3):
-        self.collected: dict   = {}
-        self.current_slot      = None
-        self.done: bool        = False
-        self.result: dict      = None
-        self.attempts: int     = 0
-        self.max_attempts: int = max_attempts
-        self._waiting_followup = False 
+    def __init__(self, config: dict = None):
+        self.config = config or {}
+        self.collected = {}
+        self.current_slot = None
+        self.done = False
+        self.result = None
+        self.attempts = 0
+        self.max_attempts = get_policy(self.config, "escalate_after_attempts", 3)
+        self._waiting_followup = False
 
     def is_done(self) -> bool:
         return self.done
 
     def handle(self, user_message: str) -> str:
-        """Procesa un turno del usuario. Retorna la respuesta del agente."""
         user_message = user_message.strip()
 
-        #  Caso: ya consultamos, esperamos si necesita algo más
         if self._waiting_followup:
             return self._handle_followup(user_message)
 
-        # Caso: procesar respuesta al slot actual
         if self.current_slot:
             slot_key = self.current_slot["key"]
             ok, error = fill_slot(self.collected, slot_key, user_message)
@@ -60,10 +48,7 @@ class StatusHandler:
                 self.attempts += 1
                 if self.attempts >= self.max_attempts:
                     self.done = True
-                    return (
-                        "No pude obtener el número de envío después de varios intentos. "
-                        "Te conecto con un agente humano. 👋"
-                    )
+                    return self._msg("escalation")
                 return f"{error}\n\n{self.current_slot['question']}"
 
             self.current_slot = None
@@ -72,26 +57,18 @@ class StatusHandler:
         return self._next_turn()
 
     def _handle_followup(self, user_message: str) -> str:
-        """Maneja la respuesta del usuario al '¿Necesitas algo más?'"""
         normalized = user_message.lower().strip(".,!¿?")
 
         if normalized in NEGATIVE_RESPONSES:
             self.done = True
-            return FAREWELL_MESSAGE
-        else:
-            # El usuario quiere algo más → preguntarle qué necesita
-            # para que el LLM tenga contexto suficiente para clasificar
-            self._waiting_followup = False
-            self.done = True
-            return (
-                "¿En qué más puedo ayudarte?\n\n"
-                "• 📅 Reprogramar este envío\n"
-                "• 🎫 Reportar un problema\n"
-                "• 📦 Consultar otro envío"
-            )
+            return self._msg("farewell")
+
+        # Usuario quiere algo más → mostrar opciones y soltar control
+        self._waiting_followup = False
+        self.done = True
+        return self._msg("unknown_intent")
 
     def _next_turn(self) -> str:
-        """Decide si pedir más datos o ejecutar la consulta."""
         next_slot = get_next_missing_slot(self.collected)
 
         if next_slot:
@@ -101,26 +78,57 @@ class StatusHandler:
         return self._query()
 
     def _query(self) -> str:
-        """Llama al API y formatea la respuesta."""
         shipment_id = self.collected["shipment_id"]
         response = get_shipment_status(shipment_id)
         self.result = response
 
         if response["success"]:
-            self._waiting_followup = True
-            return format_status_response(response["data"]) + FOLLOW_UP_MESSAGE
+            data   = response["data"]
+            status = data.get("status", "")
+            origin = data.get("origin", {})
+            dest   = data.get("destination", {})
 
-        # Envío no encontrado
-        if response.get("not_found"):
-            self.done = True
-            return (
-                f"{response['error']}\n\n"
-                "Por favor verifica el número e intenta de nuevo."
+            # Intentar usar el mensaje del cliente primero
+            client_msg = self._msg(
+                "status_update",
+                id=shipment_id,
+                status=status,
+                origin=f"{origin.get('name', '')} — {origin.get('city', '')}, {origin.get('state', '')}",
+                destination=f"{dest.get('name', '')} — {dest.get('city', '')}, {dest.get('state', '')}",
             )
 
-        # Error de sistema
+            # Si el YAML tiene el mensaje formateado, usarlo
+            # Si no, usar el formatter detallado por defecto
+            formatted = client_msg if client_msg else format_status_response(data)
+
+            self._waiting_followup = True
+            return formatted + "\n\n¿Necesita algo más con este envío?"
+
+        if response.get("not_found"):
+            self.done = True
+            return self._msg("status_not_found", id=self.collected.get("shipment_id", ""))
+
         self.done = True
-        return f"{response['error']}"
+        return f"⚠️ {response.get('error', 'Error desconocido')}"
+
+    def _msg(self, key: str, **kwargs) -> str:
+        """Obtiene mensaje del YAML del cliente con fallbacks hardcodeados."""
+        msg = get_message(self.config, key, **kwargs)
+        if msg:
+            return msg
+
+        fallbacks = {
+            "farewell": "¡Con gusto! Si necesita algo más, no dude en escribirnos. 👋",
+            "escalation": "No pude obtener el número de envío. Le conectamos con un agente humano. 👋",
+            "status_not_found":"No encontré ningún envío con ese ID. Por favor verifica el número e intenta de nuevo.",
+            "unknown_intent": (
+                "¿En qué más puedo ayudarle?\n\n"
+                "• Reprogramar este envío\n"
+                "• Reportar un problema\n"
+                "• Consultar otro envío"
+            ),
+        }
+        return fallbacks.get(key, "")
 
     def summary(self) -> dict:
         return {
