@@ -4,7 +4,6 @@ from agent.reschedule.tool_reschedule import (
     get_next_missing_slot,
     fill_slot,
     do_reschedule,
-    days_until,
     normalize_time_window,
     _valid_date,
     _valid_time_window,
@@ -18,6 +17,10 @@ CONFIRM_WORDS = {"si", "sí", "yes"}
 DENY_WORDS    = {"no"}
 MAX_RETRIES   = 3
 
+STATUS_LABEL = {
+    "DELIVERED":   "Entregado",
+    "TRANSFERRED": "Transferido",
+}
 
 class RescheduleHandler:
     """
@@ -115,6 +118,22 @@ class RescheduleHandler:
             )
 
         return None
+
+    def prefill(self, shipment_id: str = None, new_date: str = None, time_window: str = None):
+        """
+        Pre-llena slots desde el LLM validando cada valor.
+        Descarta silenciosamente cualquier valor inválido.
+        """
+        if shipment_id:
+            self.collected["shipment_id"] = shipment_id
+
+        if new_date and _valid_date(new_date):
+            self.collected["new_date"] = new_date
+
+        if time_window:
+            normalized = normalize_time_window(time_window)
+            if _valid_time_window(normalized):
+                self.collected["time_window"] = normalized
 
     def _handle_retry(self, slot_key: str, error: str) -> str:
         self.attempts[slot_key] = self.attempts.get(slot_key, 0) + 1
