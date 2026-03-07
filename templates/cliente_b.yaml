@@ -1,17 +1,67 @@
 tone: casual
 language: es
 name: "ClienteB"
+
 policies:
-  - no_hallucination: true
-  - require_confirmation: true
-  - escalate_after_attempts: 3
+  no_hallucination: true
+  require_confirmation: true
+  escalate_after_attempts: 3
+  allow_language_switch: true
+
 required_fields:
-  STATUS_QUERY: [shipment_id]
-  RESCHEDULE: [shipment_id, new_date, time_window]
-  CREATE_TICKET: [shipment_id, issue_type, description, contact_email]
+  STATUS_QUERY:    [shipment_id]
+  RESCHEDULE:      [shipment_id, new_date, time_window, reason]
+  CREATE_TICKET:   [shipment_id, issue_type, description, contact_email]
+
 message_formats:
-  status_update: "Hola! Un placer saludarte. Tu envío {id} está actualmente en estado {status}."
-  fallback: "¡Ups! Parece que este caso necesita atención especial..."
-  delay_notification: "¡Lamentamos informarte que tu envío {id} ha sufrido un retraso! Lamentamos las molestias."
-  reschedule_confirmation: "Tu solicitud de reprogramación para el envío {id} ha sido confirmada para el {new_date} en la franja horaria {time_window}."
-  ticket_creation: "Hemos creado un ticket para tu caso con el ID {ticket_id}. Lamentamos las molestias y nuestro equipo se pondrá en contacto contigo lo antes posible."
+
+  greeting: >
+    ¡Hola! 👋 Bienvenido al soporte de {name}.
+    Estoy aquí para ayudarte. ¿Con qué te puedo ayudar hoy?
+
+  status_update: >
+    ¡Hola! Tu envío {id} está actualmente en estado {status} 🚚.
+    Sale desde {origin} y va hacia {destination}.
+
+  status_not_found: >
+    Hmm, no encontré ningún envío con el ID {id} 🤔.
+    ¿Puedes verificar el número e intentarlo de nuevo?
+
+  reschedule_confirmation: >
+    ¡Listo! 🎉 Tu envío {id} quedó reprogramado para el {new_date}
+    en el horario {time_window}. Te avisaremos cuando esté confirmado.
+
+  reschedule_cancelled: >
+    ¡Perfecto, cancelado! ¿Hay algo más en lo que te pueda ayudar? 😊
+
+  ticket_creation: >
+    ¡Listo! Creamos tu ticket con el ID {ticket_id} 🎫.
+    Nuestro equipo te contactará pronto al correo {contact_email}.
+    Lamentamos los inconvenientes.
+
+  ticket_exists: >
+    Ya tenemos un ticket abierto para el envío {id} 📋.
+    ¡Nuestro equipo ya está en ello!
+
+  delay_notification: >
+    ¡Ups! 😕 Tu envío {id} tuvo un retraso.
+    La nueva fecha estimada es {new_date}. ¡Lamentamos las molestias!
+
+  fallback: >
+    ¡Ups! Parece que este caso necesita atención especial 🙏.
+    Te conectamos con un agente humano enseguida.
+
+  unknown_intent: >
+    Mmm, no estoy seguro de cómo ayudarte con eso 🤔.
+    Puedo ayudarte a: consultar tu envío, reprogramar una entrega o reportar un problema.
+    ¿Cuál necesitas?
+
+  escalation: >
+    Te estamos conectando con un agente humano que podrá ayudarte mejor 👋.
+    ¡Lamentamos no haber podido resolver tu caso directamente!
+
+  cancel_confirmation: >
+    ¡Cancelado! ¿Hay algo más en lo que te pueda ayudar? 😊
+
+  farewell: >
+    ¡Fue un placer ayudarte! 👋 Si necesitas algo más, aquí estamos.

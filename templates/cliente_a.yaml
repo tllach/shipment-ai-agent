@@ -1,17 +1,69 @@
 tone: formal
 language: es
 name: "ClienteA"
+
 policies:
-  - no_hallucination: true
-  - require_confirmation: true
-  - escalate_after_attempts: 2
+  no_hallucination: true
+  require_confirmation: true
+  escalate_after_attempts: 2
+  allow_language_switch: true   # responde en el idioma del usuario (es/en)
+
 required_fields:
-  STATUS_QUERY: [shipment_id]
-  RESCHEDULE: [shipment_id, new_date, time_window]
-  CREATE_TICKET: [shipment_id, issue_type, description, contact_email]
+  STATUS_QUERY:    [shipment_id]
+  RESCHEDULE:      [shipment_id, new_date, time_window, reason]
+  CREATE_TICKET:   [shipment_id, issue_type, description, contact_email]
+
 message_formats:
-  status_update: "Estimado cliente, el envío {id} se encuentra en estado {status}..."
-  fallback: "Lo sentimos, este caso requiere atención especializada..."
-  delay_notification: "Lamentamos informarle que su envío {id} ha sufrido un retraso..."
-  reschedule_confirmation: "Su solicitud de reprogramación para el envío {id} ha sido confirmada para el {new_date} en la franja horaria {time_window}."
-  ticket_creation: "Hemos creado un ticket para su caso con el ID {ticket_id}. Nuestro equipo se pondrá en contacto con usted a la brevedad."
+
+  greeting: >
+    Bienvenido al sistema de soporte logístico de {name}.
+    Estoy aquí para asistirle. ¿En qué puedo ayudarle hoy?
+
+  status_update: >
+    Estimado cliente, el envío {id} se encuentra actualmente en estado {status}.
+    Origen: {origin} — Destino: {destination}.
+
+  status_not_found: >
+    Lamentamos informarle que no encontramos ningún envío con el ID {id}.
+    Por favor verifique el número e intente nuevamente.
+
+  reschedule_confirmation: >
+    Su solicitud de reprogramación para el envío {id} ha sido confirmada
+    para el {new_date} en la franja horaria {time_window}.
+    Recibirá una notificación de confirmación a la brevedad.
+
+  reschedule_cancelled: >
+    La reprogramación ha sido cancelada. ¿Hay algo más en lo que pueda asistirle?
+
+  ticket_creation: >
+    Hemos registrado su caso con el ticket ID {ticket_id}.
+    Nuestro equipo de soporte se pondrá en contacto con usted a la brevedad
+    en la dirección {contact_email}.
+
+  ticket_exists: >
+    Ya existe un ticket activo para el envío {id}.
+    Nuestro equipo ya está atendiendo su caso.
+
+  delay_notification: >
+    Lamentamos informarle que su envío {id} ha sufrido un retraso.
+    La nueva fecha estimada de entrega es {new_date}. Disculpe los inconvenientes.
+
+  # Errores y fallbacks
+  fallback: >
+    Lo sentimos, este caso requiere atención especializada.
+    Le conectaremos con un agente humano en breve.
+
+  unknown_intent: >
+    No hemos podido identificar su solicitud. Le invitamos a reformularla.
+    Nuestras opciones disponibles son: consultar estado, reprogramar envío o reportar un problema.
+
+  escalation: >
+    Estimado cliente, hemos escalado su caso a un agente humano
+    quien se pondrá en contacto con usted a la brevedad. Disculpe los inconvenientes.
+
+  cancel_confirmation: >
+    La operación ha sido cancelada. ¿Hay algo más en lo que pueda asistirle?
+
+  farewell: >
+    Ha sido un placer asistirle. Que tenga un excelente día.
+    No dude en contactarnos si necesita ayuda adicional.
