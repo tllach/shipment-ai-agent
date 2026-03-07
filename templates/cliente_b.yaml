@@ -6,7 +6,7 @@ policies:
   no_hallucination: true
   require_confirmation: true
   escalate_after_attempts: 3
-  allow_language_switch: true
+  allow_language_switch: true # responde en el idioma del usuario (es/en)
 
 required_fields:
   STATUS_QUERY:    [shipment_id]
@@ -19,10 +19,7 @@ message_formats:
     ¡Hola! 👋 Bienvenido al soporte de {name}.
     Estoy aquí para ayudarte. ¿Con qué te puedo ayudar hoy?
 
-  status_update: >
-    ¡Hola! Tu envío {id} está actualmente en estado {status} 🚚.
-    Sale desde {origin} y va hacia {destination}.
-    La fecha estimada de entrega es {estimated_delivery} 📅.
+  followup_question: "¿Necesitas algo más con este envío? 😊"
 
   status_not_found: >
     Hmm, no encontré ningún envío con el ID {id} 🤔.

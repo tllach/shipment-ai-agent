@@ -71,9 +71,9 @@ class StatusHandler:
         if not follow_up_menu:
             follow_up_menu = (
                 "¿En qué más puedo ayudarte?\n\n"
-                "• Reprogramar este envío"
-                "• Reportar un problema"
-                "• Consultar otro envío"
+                "• Reprogramar este envío \n"
+                "• Reportar un problema \n"
+                "• Consultar otro envío \n"
             )
         return follow_up_menu
 
@@ -96,22 +96,58 @@ class StatusHandler:
             status = data.get("status", "")
             origin = data.get("origin", {})
             dest = data.get("destination", {})
+            cargo = data.get("cargo", {})
+            container = data.get("container", "")
 
-            # Intentar usar el mensaje del cliente primero
-            client_msg = self._msg(
-                "status_update",
-                id=shipment_id,
-                status=status,
-                origin=f"{origin.get('name', '')} — {origin.get('city', '')}, {origin.get('state', '')}",
-                destination=f"{dest.get('name', '')} — {dest.get('city', '')}, {dest.get('state', '')}",
+            # Calcular días relativos para la fecha de entrega
+            from agent.status.tool_status import _days_until
+            dest_date = dest.get("date", "")
+            dest_time = dest.get("time", "")
+            dest_relative = _days_until(dest_date) if dest_date else ""
+
+            origin_date = origin.get("date", "")
+            origin_time = origin.get("time", "")
+            origin_relative = _days_until(origin_date) if origin_date else ""
+
+            # Todas las variables disponibles para el template del cliente
+            template_vars = dict(
+                id = shipment_id,
+                status = status,
+                order_type = data.get("order_type", ""),
+                container = container,
+                # Origen
+                origin = f"{origin.get('name', '')} — {origin.get('city', '')}, {origin.get('state', '')}",
+                origin_name = origin.get("name", ""),
+                origin_city = origin.get("city", ""),
+                origin_state = origin.get("state", ""),
+                origin_date = origin_date,
+                origin_time = origin_time,
+                origin_relative = origin_relative,
+                # Destino
+                destination = f"{dest.get('name', '')} — {dest.get('city', '')}, {dest.get('state', '')}",
+                dest_name = dest.get("name", ""),
+                dest_city = dest.get("city", ""),
+                dest_state = dest.get("state", ""),
+                dest_date = dest_date,
+                dest_time = dest_time,
+                dest_relative = dest_relative,
+                # Carga
+                weight = cargo.get("weight_lbs", ""),
+                pieces = cargo.get("pieces", ""),
+                bol = cargo.get("bol", ""),
+                seal = cargo.get("seal", ""),
             )
 
-            # Si el YAML tiene el mensaje formateado, usarlo
-            # Si no, usar el formatter detallado por defecto
-            formatted = client_msg if client_msg else format_status_response(data)
+            # Si el YAML tiene status_update → el cliente controla el mensaje completo
+            # Si no → usar el formatter detallado por defecto
+            client_msg = self._msg("status_update", **template_vars)
+            formatted  = client_msg if client_msg else format_status_response(data)
 
             self._waiting_followup = True
-            return formatted + "\n\n¿Necesita algo más con este envío?"
+            followup = self._msg("followup_question")
+            if not followup:
+                followup = "¿Necesitas algo más con este envío?"
+            return formatted + f"\n\n{followup}"
 
         if response.get("not_found"):
             self.done = True

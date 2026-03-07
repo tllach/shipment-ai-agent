@@ -18,11 +18,8 @@ message_formats:
   greeting: >
     Bienvenido al sistema de soporte logístico de {name}.
     Estoy aquí para asistirle. ¿En qué puedo ayudarle hoy?
-
-  status_update: >
-    Estimado cliente, el envío {id} se encuentra actualmente en estado {status}.
-    Origen: {origin} — Destino: {destination}.
-    La fecha estimada de entrega es {estimated_delivery}.
+  
+  followup_question: "¿Necesita algo más con este envío?"
 
   status_not_found: >
     Lamentamos informarle que no encontramos ningún envío con el ID {id}.
@@ -38,8 +35,7 @@ message_formats:
 
   ticket_creation: >
     Hemos registrado su caso con el ticket ID {ticket_id}.
-    Nuestro equipo de soporte se pondrá en contacto con usted a la brevedad
-    en la dirección {contact_email}.
+    Nuestro equipo de soporte se pondrá en contacto con usted a la brevedad en la dirección {contact_email}.
 
   ticket_exists: >
     Ya existe un ticket activo para el envío {id}.
