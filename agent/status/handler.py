@@ -1,8 +1,11 @@
 from agent.status.tool_status import (
     get_next_missing_slot,
     fill_slot,
-    get_shipment_status,
     format_status_response,
+)
+
+from agent.tools import (
+    get_shipment_status
 )
 
 # Respuestas que indican que el usuario no necesita más ayuda
