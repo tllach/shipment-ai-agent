@@ -55,9 +55,11 @@ Desarrollo de un agente conversacional de soporte logístico que permite a los u
 
 ### 2.5 Pruebas
 
-- Script de prueba manual interactiva con 8 escenarios predefinidos y comandos de utilidad
-- Tests automatizados para RescheduleHandler (5 casos)
-- Tests de integración para StatusHandler y el orquestador principal
+- Script de prueba manual interactiva (`tests/manual_agent.py`) con 8 escenarios predefinidos y comandos de utilidad (`/test 1` – `/test 8`)
+- **20 tests automatizados** distribuidos en 3 archivos, sin dependencias externas (Ollama ni Mock API):
+  - `tests/test_reschedule.py` — 5 tests unitarios del RescheduleHandler: flujo completo, prefill, fecha inválida, bloqueo por DELIVERED, envío inexistente
+  - `tests/test_status.py` — 7 tests de integración del StatusHandler: respuesta completa, follow-up, formato DELIVERED, 404, error de conexión, mensajes desde YAML
+  - `tests/test_agent.py` — 8 tests de integración del orquestador: routing por intención, guardia anti-alucinación, escalación por UNKNOWN, reset de sesión, continuación de handler activo
 
 ---
 
