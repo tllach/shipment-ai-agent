@@ -6,6 +6,7 @@ Agente conversacional de soporte logístico construido con Python, FastAPI y Oll
 
 ## Tabla de contenidos
 
+- [Relevancia](#relevancia)
 - [Arquitectura](#arquitectura)
 - [Requisitos](#requisitos)
 - [Instalación](#instalación)
@@ -13,10 +14,25 @@ Agente conversacional de soporte logístico construido con Python, FastAPI y Oll
 - [Cómo probar el agente](#cómo-probar-el-agente)
 - [Configuración de clientes](#configuración-de-clientes)
 - [Estructura del proyecto](#estructura-del-proyecto)
+- [Mejoras futuras](#mejoras-futuras)
+- [Sobre la autora](#sobre-la-autora)
 
 ---
 
+## Relevancia
+
+El soporte al cliente en logística suele ser repetitivo, lento y costoso.
+
+Este agente de IA automatiza:
+
+- Consultas de estado de envíos
+- Reprogramación de entregas
+- Reporte de problemas (tickets)
+
+
 ## Arquitectura
+
+### Diseño del sistema
 
 ```
 Usuario → UI (Streamlit)
@@ -36,7 +52,8 @@ Usuario → UI (Streamlit)
          shipments.json
 ```
 
-**Flujo:**
+### Flujo
+
 1. El usuario envía un mensaje
 2. El LLM detecta la intención y extrae entidades (shipment_id, fecha, horario)
 3. El orquestador activa el handler correspondiente
@@ -121,7 +138,7 @@ export PYTHONPATH=$(pwd)
 
 ---
 
-## Cómo correr el proyecto
+## Cómo ejecutar el proyecto
 
 Necesitas **3 terminales** corriendo simultáneamente:
 
@@ -433,5 +450,22 @@ ai-agent/
 - El agente **nunca inventa datos** — si el API no retorna un campo, no lo muestra
 - El `shipment_id` detectado por el LLM solo se usa si aparece literalmente en el mensaje del usuario (guardia anti-alucinación)
 - Los handlers validan el `shipment_id` **antes** de pedir datos adicionales al usuario
-
 - Timeout del LLM configurado a 120s con 2 reintentos para tolerar la carga inicial del modelo
+
+## Mejoras futuras
+
+- Persistencia de conversaciones (PostgreSQL)
+- Despliegue con Docker
+- Integración con APIs reales de logística
+- Modelo de intención fine-tuned
+- Frontend en React (reemplazar Streamlit)
+
+## Sobre la autora
+
+Desarrollado por una Fullstack Developer enfocada en:
+
+- Aplicaciones con IA
+- Productos SaaS
+- Sistemas backend escalables
+
+Abierta a oportunidades en roles de AI / Fullstack 
